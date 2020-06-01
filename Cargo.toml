@@ -7,3 +7,8 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+jokrey_utilities = { path = "../jokrey_utilities" }
+base64 = "~0.6.0"
+image = "0.23.4"
+rand = "0.7.3"
+reqwest = { version = "0.10.6", features = ["blocking"] }

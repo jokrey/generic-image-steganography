@@ -1,0 +1,82 @@
+Idea:
+Alice and Bob have shared images (like most people) and Alice wants to send Bob a message.
+Alice selects an image (by some code), enters a message and the image into the encoder.
+The encoder outputs a second image looking identical to the first one (to the human eye).
+
+It can be sent across pretty much any digital medium without raising an eyebrow.
+
+Bob enters the original image and the encoded image into the decoder.
+The decoder outputs the message.
+
+User-Steps (in the provided UI):
+  - Choose between encoding/decoding
+    ->ENCODING:
+      - Choose message (Choose between utf8/base64 -> Enter message (encoded))
+      - Choose encryption (Choose between aes/(cancel, i.e. none is allowed) -> Enter password)
+      - Choose original image (Choose between url/path -> Enter url/path)
+      - Choose output image path (Enter path)
+    ->DECODING:
+      - Choose original/encoded image (Choose between url/path -> Enter url/path)
+      - Choose encoded/original image (Choose between url/path -> Enter url/path)
+      - Choose decryption (Choose between aes/(cancel, i.e. none is allowed) -> Enter password)
+      - Choose decoding (Choose between utf8/base64)
+
+Notes:
+	The cryptographic security will not be particularly high given some constraints.
+	For example access to the shared images and the given encoded image, breaks everything.
+		(In that case the images can simply be checked for equality/similarity to find the 'key')
+	The security lies in the obscurity of the transfer method(yeah, yeah security by obscurity is bad - but in real life,
+	        non-mass applications it provides a barely surmountable obstacle), the number of possible keys compared to the length of the message and,
+	            most importantly, the impossibility to distinguish between a normal image and an image with an encoded message (unless, of course, the original image is known).
+	
+	The following should hold: Without the original image the message cannot be decoded (i.e. just 1 bit difference per pixel (which should not be detectable even by analyzers)).
+
+    The practical applications of this are limited to some very specific and unlikely use cases, but it will help with further studying Rust.
+
+
+Algorithm:
+    Encode:
+        The message provided in bytes is decoded into bits (big endian). 'n' shall denote the number of bits.
+            The message can be encoded into bytes using any format (utf8, base64, others)
+            The message can also be encrypted using any algorithm (AES, 3DES, others)
+        In the given byte container n bytes are selected randomly (n has to be <= container length).
+            Note: If the container is an image the bytes are the rgb values of each pixel, addressed as if the image was a flat stored 3D matrix (width x height x 3).
+                  R, G and B channel are used independently to encode data.
+        For each bit the selected bytes are changed by 1(if the bit is a 1) or 2(if the bit is a 2).
+            The direction of the change does not matter and is randomly chosen, unless that is impossible (255 cannot be changed in the positive direction)
+            (due to problems that would arise on dark and bright images(that contain many 254s, 255s, 0s and 1s),
+                additionally it provides commutativity between encoded and original image in the decode step).
+        Done
+    Decode:
+        The algorithm is provided with two byte containers, one shall be the original container used in encoding, the other shall be the result of the encoding.
+            For example a simple byte array or an image.
+        Changes between the two containers are detected.
+        From the changes the original message is restored based on the code table (change of magnitude 1 -> bit=1, change of magnitude 2 -> bit=0).
+        The resulting byte array is the original message in bytes
+            The message can also be decrypted using any algorithm (AES, 3DES, others)
+            The message can be decoded from bytes using any format (utf8, base64, others)
+        Done
+
+
+
+Possible improvements:
+- Select indices based on metric.
+   Analyze variance of overlapping areas, weight each pixel/index based on the variance in its areas.
+   Additionally weight each pixel based on its distance to previously selected pixels
+        (high distance to previously selected pixels -> higher probability of selection)
+- Encode more than one bit into a single pixel r/g/b value
+   If the selected indices are not sufficient, amend the code table(even more is considered a too large change, but that will have to be determined in more tests):
+        bits - dif
+         0  <-> 2
+         1  <-> 1
+         10 <-> 3
+         01 <-> 4
+         00 <-> 5
+         11 <-> 6
+   Whether one or two bits are encoded is based on the requirements(i.e. the limitations of the selected pixels and otherwise prefer small changes) and is otherwise random. 
+- Mutating Code Tables
+   The code table could permutate within the number of bits the group encodes based a simple hash of the index (here we require repeatability for .
+- Make the direction of the change dependent on the average color in the area.
+- Make the direction of the change dependent on the direction of the rgb vector.
+///(- include alpha channel
+    (requires much more complex metrics for selection, because alpha is typically the same for large areas and should not be changed then)
