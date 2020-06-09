@@ -1,5 +1,5 @@
 [package]
-name = "message_into_image"
+name = "generic_image_steganography"
 version = "0.2.0"
 authors = ["jokrey <justin.bennett.developer@gmail.com>"]
 edition = "2018"
