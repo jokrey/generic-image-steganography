@@ -8,7 +8,7 @@ use std::ops::Deref;
 
 use jokrey_utilities::encoding::tag_based::bytes::remote::authenticated::authentication_helper::{aes_crt_np_128_decrypt_from_decipherable, aes_crt_np_128_encrypt_into_decipherable};
 use jokrey_utilities::general::Wrapper;
-use jokrey_utilities::tui_menu_interface::{Choice, ChoiceConstrainedInput, InputItem, Menu, NonExistingPathInput};
+use jokrey_utilities::tui_menu_interface::{Choice, ChoiceConstrainedInput, InputItem, Menu, NonExistingPathInput, print_and_read_line};
 
 use crate::util::DifCodeImage;
 use crate::difference_encoder::multi_bit::{decode_into_vec, encode_into_image_into_path};
@@ -91,6 +91,8 @@ fn encode_menu() {
     } else {
         println!("Missing message - cannot encode no message")
     }
+
+    print_and_read_line("Done ... press any key to finish").expect("print or read failed?");
 }
 
 
@@ -153,6 +155,8 @@ fn decode_menu() {
     } else {
         println!("Missing an image - cannot decode message without 2 'identical' images")
     }
+
+    print_and_read_line("Done ... press any key to finish").expect("print or read failed?");
 }
 
 
