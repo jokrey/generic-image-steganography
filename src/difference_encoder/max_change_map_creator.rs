@@ -3,15 +3,20 @@ use crate::difference_encoder::bits_difference_converter::{get_max_num_bits_enco
 use jokrey_utilities::general::distance;
 use crate::rand::prelude::SliceRandom;
 
-pub fn create_minimal_random_allowed_changes_map_for(message: &[u8], original: &dyn EncodingContainer) -> Vec<u8> {
+pub fn create_minimal_random_allowed_changes_map_for(message: &[u8], original: &dyn EncodingContainer, max_difference: u8) -> Vec<u8> {
+    let mut output_map = vec![0; original.len()];
+    write_minimal_random_allowed_changes_map_with(get_length_in_bits(message), original, max_difference, &mut output_map);
+    output_map
+}
+pub fn create_minimal_random_allowed_changes_map(message: &[u8], original: &dyn EncodingContainer) -> Vec<u8> {
     let mut output_map = vec![0; original.len()];
     write_minimal_random_allowed_changes_map_for(message, original, &mut output_map);
     output_map
 }
 pub fn write_minimal_random_allowed_changes_map_for(message: &[u8], original: &dyn EncodingContainer, output_map: &mut dyn EncodingContainer) {
-    write_minimal_random_allowed_changes_map_with(get_length_in_bits(message), original, output_map)
+    write_minimal_random_allowed_changes_map_with(get_length_in_bits(message), original, 255, output_map)
 }
-pub fn write_minimal_random_allowed_changes_map_with(mut message_length_in_bits: usize, original: &dyn EncodingContainer, output_map: &mut dyn EncodingContainer) {
+pub fn write_minimal_random_allowed_changes_map_with(mut message_length_in_bits: usize, original: &dyn EncodingContainer, max_difference: u8, output_map: &mut dyn EncodingContainer) {
     for i in 0..original.len() {
         output_map[i] = original[i];
     }
@@ -29,17 +34,22 @@ pub fn write_minimal_random_allowed_changes_map_with(mut message_length_in_bits:
             let allowed_change = output_map[*sel_i];
             let old_difference = distance(original_value, allowed_change);
 
-            let num_bits_currently_encodable = get_max_num_bits_encodable(old_difference);
-            if let Some(new_difference) = calculate_worst_case_difference_for(num_bits_currently_encodable + 1) {
-                if original_value == allowed_change {
-                    let is_direction_positive = original_value <= 255/2; //keep same direction as before...
-                    if attempt_change(output_map, *sel_i, new_difference - old_difference, is_direction_positive) {
-                        success_counter += 1;
+            if old_difference < max_difference {
+                let num_bits_currently_encodable = get_max_num_bits_encodable(old_difference);
+                if let Some(mut new_difference) = calculate_worst_case_difference_for(num_bits_currently_encodable + 1) {
+                    if new_difference > max_difference {
+                        new_difference = max_difference;
                     }
-                } else {
-                    let desired_direction_positive = allowed_change > original_value;//keep same direction as before...
-                    if attempt_change(output_map, *sel_i, new_difference - old_difference, desired_direction_positive) {
-                        success_counter += 1;
+                    if original_value == allowed_change {
+                        let is_direction_positive = original_value <= 255 / 2; //maximize possibility
+                        if attempt_change(output_map, *sel_i, new_difference - old_difference, is_direction_positive) {
+                            success_counter += 1;
+                        }
+                    } else {
+                        let desired_direction_positive = allowed_change > original_value;//keep same direction as before...
+                        if attempt_change(output_map, *sel_i, new_difference - old_difference, desired_direction_positive) {
+                            success_counter += 1;
+                        }
                     }
                 }
             }

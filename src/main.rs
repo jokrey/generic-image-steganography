@@ -12,7 +12,7 @@ use jokrey_utilities::tui_menu_interface::{Choice, ChoiceConstrainedInput, Input
 
 use crate::util::DifCodeImage;
 use crate::difference_encoder::multi_bit::{decode_into_vec, encode_into_image_into_path};
-use crate::difference_encoder::max_change_map_creator::create_minimal_random_allowed_changes_map_for;
+use crate::difference_encoder::max_change_map_creator::{create_minimal_random_allowed_changes_map_for, create_minimal_random_allowed_changes_map};
 
 mod difference_encoder;
 mod util;
@@ -79,7 +79,7 @@ fn encode_menu() {
             if let Some(output_path) = output_path {
                 println!("Encoding final message({:?}),\n    into image({}),\n    and storing in path:\n{}", &final_message_bytes, &image, &output_path);
                 encode_into_image_into_path(&final_message_bytes, image,
-                                            &create_minimal_random_allowed_changes_map_for(&final_message_bytes, image),
+                                            &create_minimal_random_allowed_changes_map(&final_message_bytes, image),
                                                              &output_path).expect("failed to encode");
                 // encode_into_image_into_path_at_indices(&final_message_bytes, image, &randomly_select_indices_within(&final_message_bytes, image), &output_path).expect("failed to encode");
             } else {

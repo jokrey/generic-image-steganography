@@ -2,7 +2,7 @@ use crate::util::{DifCodeImage, get_length_in_bits, EncodingContainer};
 use crate::difference_encoder::bits_difference_converter::{dynamic_bits_to_difference, get_max_num_bits_encodable, dynamic_difference_to_bits, static_difference_to_bits, static_bits_to_difference, static_bits_to_difference_if_allowed};
 use crate::difference_encoder::multi_bit::{decode_into_vec, encode_into_image, encode_into_vec, decode, encode};
 use crate::difference_encoder::legacy_single_bit::{randomly_select_indices_within, encode_into_vec_at_indices, decode_into_vec_at_indices, encode_into_image_at_indices, randomly_select_indices};
-use crate::difference_encoder::max_change_map_creator::create_minimal_random_allowed_changes_map_for;
+use crate::difference_encoder::max_change_map_creator::{create_minimal_random_allowed_changes_map_for, create_minimal_random_allowed_changes_map};
 
 #[test]
 fn test_encode_details() {
@@ -14,6 +14,19 @@ fn test_encode_details() {
 
     encode(message, &original, &allowed_changes_map, &mut encoded).expect("error encoding");
 
+    println!("original: {:?}", original);
+    println!("allowed_changes_map: {:?}", allowed_changes_map);
+    println!("encoded: {:?}", encoded);
+
+
+    let allowed_changes_map = create_minimal_random_allowed_changes_map_for(message, &original, 1);
+
+    encoded = vec![123u8; 16];
+
+    encode(message, &original, &allowed_changes_map, &mut encoded).expect("error encoding");
+
+    println!("original: {:?}", original);
+    println!("allowed_changes_map: {:?}", allowed_changes_map);
     println!("encoded: {:?}", encoded);
 }
 
@@ -261,7 +274,7 @@ fn test_bytes() {
     println!("message        : {:?}", message_bytes);
     println!("original       : {:?}", original);
 
-    let mut allowed_changes: Vec<u8> = create_minimal_random_allowed_changes_map_for(&message_bytes, &original);
+    let mut allowed_changes: Vec<u8> = create_minimal_random_allowed_changes_map(&message_bytes, &original);
     println!("allowed_changes: {:?}", allowed_changes);
 
     let encoded = encode_into_vec(&message_bytes, &original, &mut allowed_changes).unwrap();
@@ -280,7 +293,7 @@ fn test_multi_bit_encoding() {
     println!("message        : {:?}", message_bytes);
     println!("original       : {:?}", original);
 
-    let mut allowed_changes: Vec<u8> = create_minimal_random_allowed_changes_map_for(&message_bytes, &original);
+    let mut allowed_changes: Vec<u8> = create_minimal_random_allowed_changes_map(&message_bytes, &original);
     println!("allowed_changes: {:?}", allowed_changes);
 
     let encoded= encode_into_vec(&message_bytes, &original, &mut allowed_changes).unwrap();
@@ -303,7 +316,7 @@ fn test_image_without_save() {
 
     let original_image = DifCodeImage::open(original_image_path).unwrap();
 
-    let allowed_changes: Vec<u8> = create_minimal_random_allowed_changes_map_for(&message_bytes, &original_image);
+    let allowed_changes: Vec<u8> = create_minimal_random_allowed_changes_map(&message_bytes, &original_image);
     println!("allowed_changes len: {:?}", allowed_changes.len());
 
     let encoded_image = encode_into_image(&message_bytes, &original_image, &allowed_changes).expect("encoding failed");
@@ -326,7 +339,7 @@ fn test_image_with_save() {
     let original_image = DifCodeImage::open(original_image_path).unwrap();
 
     let encoded_image = encode_into_image(&message_bytes, &original_image,
-                                          &create_minimal_random_allowed_changes_map_for(&message_bytes, &original_image)
+                                          &create_minimal_random_allowed_changes_map(&message_bytes, &original_image)
     ).expect("encoding/saving failed");
     encoded_image.save(encoded_image_path).expect("saving image failed");
 
@@ -364,7 +377,7 @@ fn test_image_multi_bit_with_save() {
     println!("message length: {:?}", message_bytes.len());
 
     let encoded_image = encode_into_image(&message_bytes, &original_image,
-                                          &create_minimal_random_allowed_changes_map_for(&message_bytes, &original_image)
+                                          &create_minimal_random_allowed_changes_map(&message_bytes, &original_image)
     ).expect("encoding/saving failed");
     encoded_image.save(encoded_image_path).expect("saving image failed");
 
