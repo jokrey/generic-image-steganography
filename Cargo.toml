@@ -1,6 +1,6 @@
 [package]
 name = "message_into_image"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["jokrey <justin.bennett.developer@gmail.com>"]
 edition = "2018"
 
@@ -10,5 +10,7 @@ edition = "2018"
 jokrey_utilities = { path = "../jokrey_utilities" }
 base64 = "~0.6.0"
 image = "0.23.4"
+threadpool = "1.7.1"
+minifb = "0.16"
 rand = "0.7.3"
 reqwest = { version = "0.10.6", features = ["blocking"] }
