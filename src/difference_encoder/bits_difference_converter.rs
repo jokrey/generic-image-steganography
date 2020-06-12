@@ -2,12 +2,20 @@ use jokrey_utilities::general::is_odd;
 use crate::rand::Rng;
 
 pub fn get_min_num_bits_encodable(difference: u8) -> u8 {
-    let encodable = get_max_num_bits_encodable(difference);
+    //LOGIC: a dif=1 cannot necessarily encode a bit, dif=2 always can(regardless of encoding table permutation and actual bit string).
+    //LOGIC: a dif=3 cannot necessarily encode two bits, dif=6 always can(regardless of encoding table permutation and actual bit string).
+    if difference == 255 {return 7;}//otherwise difference +1 would overflow
+    let encodable = get_num_bits_decodable(difference + 1); //expressively this does not necessarily seem intuitive, but it is nonetheless correct
     if encodable == 0 {
         0
     } else {
         encodable - 1
     }
+}
+pub fn get_num_bits_decodable(difference: u8) -> u8 {
+    //LOGIC: If bits are known to be encoded in the given difference, we now that they could be encoded given their difference.
+    //       Therefore they are at the maximum end of encodability
+    get_max_num_bits_encodable(difference)
 }
 pub fn get_max_num_bits_encodable(difference: u8) -> u8 {
     if difference == 0 {
@@ -29,6 +37,20 @@ pub fn get_max_num_bits_encodable(difference: u8) -> u8 {
     } else /*if difference <= 255*/ {
         8
     }
+}
+
+#[test]
+fn test_min_num_bits_encodable() {
+    assert_eq!(0, get_min_num_bits_encodable(0));//max == 0
+    assert_eq!(0, get_min_num_bits_encodable(1));//max == 1 (with probability 50%)
+    assert_eq!(1, get_min_num_bits_encodable(2));//max == 1
+    assert_eq!(1, get_min_num_bits_encodable(3));//max == 2
+    assert_eq!(1, get_min_num_bits_encodable(5));//max == 2
+    assert_eq!(2, get_min_num_bits_encodable(6));//max == 2
+    assert_eq!(2, get_min_num_bits_encodable(7));//max == 3
+    assert_eq!(6, get_min_num_bits_encodable(253));//max == 7
+    assert_eq!(7, get_min_num_bits_encodable(254));//max == 7
+    assert_eq!(7, get_min_num_bits_encodable(255));//max == 8 (though unlikely)
 }
 
 pub fn calculate_worst_case_difference_for(num_bits: u8) -> Option<u8> {

@@ -10,13 +10,17 @@ use jokrey_utilities::encoding::tag_based::bytes::remote::authenticated::authent
 use jokrey_utilities::general::Wrapper;
 use jokrey_utilities::tui_menu_interface::{Choice, ChoiceConstrainedInput, InputItem, Menu, NonExistingPathInput, print_and_read_line};
 
-use crate::util::DifCodeImage;
+use crate::util::{DifCodeImage, DifCodeResult};
 use crate::difference_encoder::multi_bit::{decode_into_vec, encode_into_image_into_path};
-use crate::difference_encoder::max_change_map_creator::{create_minimal_random_allowed_changes_map_for, create_minimal_random_allowed_changes_map};
+use crate::difference_encoder::max_change_map_creator::{create_minimal_evenly_random_allowed_changes_map_for_image, create_minimal_evenly_random_max_area_average_allowed_changes_map};
 
 mod difference_encoder;
 mod util;
 mod image_ui_util;
+
+//test messages:
+//HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLllllllllllllllllllllllllllllOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOooooooooooooooooooooooooooooo
+//Hallo dies ist ein Test!?
 
 fn main() {
     // image_ui_util::display_image_from_path("test/RealisticTestImageMultiBit.png");
@@ -46,12 +50,16 @@ fn encode_menu() {
         }
     });
     let encryption_chooser = ChoiceConstrainedInput::new("Encryption: ", vec!["AES"], |raw, _| Ok(raw.to_string()));
+    let selection_algorithm_chooser = Choice::new_with_default("Pixel Selection Algorithm",
+                                                               vec!["Evenly Random Minimal Difference - No Max", "Evenly Random Minimal Difference - Area Average Max"],
+                                                               0);
     let image_chooser = new_image_chooser("Load Original Image");
     let output_path_chooser = NonExistingPathInput::new_nep("Output Image Path");
 
     Menu::run_root("Encrypt Your Message Into Your Images", vec![
         &message_chooser,
         &encryption_chooser,
+        &selection_algorithm_chooser,
         &image_chooser,
         &output_path_chooser
     ]);
@@ -75,15 +83,19 @@ fn encode_menu() {
         let image = image_chooser.get_value();
         if let Some(image) = image {
             let image = image.get_1();
-            let output_path = output_path_chooser.get_value();
-            if let Some(output_path) = output_path {
-                println!("Encoding final message({:?}),\n    into image({}),\n    and storing in path:\n{}", &final_message_bytes, &image, &output_path);
-                encode_into_image_into_path(&final_message_bytes, image,
-                                            &create_minimal_random_allowed_changes_map(&final_message_bytes, image),
-                                                             &output_path).expect("failed to encode");
-                // encode_into_image_into_path_at_indices(&final_message_bytes, image, &randomly_select_indices_within(&final_message_bytes, image), &output_path).expect("failed to encode");
+            if let Some(selection_algorithm) = get_selection_algorithm_from_choice(selection_algorithm_chooser) {
+                let output_path = output_path_chooser.get_value();
+                if let Some(output_path) = output_path {
+                    println!("Encoding final message({:?}),\n    into image({}),\n    and storing in path:\n{}", &final_message_bytes, &image, &output_path);
+                    encode_into_image_into_path(&final_message_bytes, image,
+                                                &selection_algorithm(&final_message_bytes, image).expect("could not select indices to change"),
+                                                                 &output_path).expect("failed to encode");
+                    // encode_into_image_into_path_at_indices(&final_message_bytes, image, &randomly_select_indices_within(&final_message_bytes, image), &output_path).expect("failed to encode");
+                } else {
+                    println!("Missing image - cannot encode message into no image")
+                }
             } else {
-                println!("Missing image - cannot encode message into no image")
+                println!("Missing pixel selection algorithm - cannot encode without")
             }
         } else {
             println!("Missing image - cannot encode message into no image")
@@ -175,4 +187,16 @@ fn new_image_chooser(name: &str) -> ChoiceConstrainedInput<DifCodeImage> {
             _ => Err("Invalid Input for Choice (impossible)")
         }
     })
+}
+
+fn get_selection_algorithm_from_choice(selection_algorithm_chooser: Choice) -> Option<fn(message: &[u8], original: &DifCodeImage) -> DifCodeResult<Vec<u8>>> {
+    match selection_algorithm_chooser.get_value().as_deref() {
+        Some("Evenly Random Minimal Difference - No Max") => {
+            Some(create_minimal_evenly_random_allowed_changes_map_for_image)
+        }
+        Some("Evenly Random Minimal Difference - Area Average Max") => {
+            Some(create_minimal_evenly_random_max_area_average_allowed_changes_map)
+        }
+        Some(_) | None => None
+    }
 }

@@ -1,33 +1,35 @@
-use crate::util::{DifCodeImage, get_length_in_bits, EncodingContainer};
-use crate::difference_encoder::bits_difference_converter::{dynamic_bits_to_difference, get_max_num_bits_encodable, dynamic_difference_to_bits, static_difference_to_bits, static_bits_to_difference, static_bits_to_difference_if_allowed};
-use crate::difference_encoder::multi_bit::{decode_into_vec, encode_into_image, encode_into_vec, decode, encode};
+use crate::util::{DifCodeImage, get_length_in_bits, EncodingContainer, DifCodeError};
+use crate::difference_encoder::bits_difference_converter::{dynamic_bits_to_difference, get_num_bits_decodable, dynamic_difference_to_bits, static_difference_to_bits, static_bits_to_difference, static_bits_to_difference_if_allowed};
+use crate::difference_encoder::multi_bit::{decode_into_vec, encode_into_image, encode_into_vec, decode, encode, get_max_encodable_message_length_in_bits, get_min_encodable_message_length_in_bits};
 use crate::difference_encoder::legacy_single_bit::{randomly_select_indices_within, encode_into_vec_at_indices, decode_into_vec_at_indices, encode_into_image_at_indices, randomly_select_indices};
-use crate::difference_encoder::max_change_map_creator::{create_minimal_random_allowed_changes_map_for, create_minimal_random_allowed_changes_map};
+use crate::difference_encoder::max_change_map_creator::{create_minimal_evenly_random_allowed_changes_map, create_minimal_evenly_random_allowed_changes_map_for, write_minimal_evenly_random_max_area_average_allowed_changes_map_for, write_minimal_evenly_random_allowed_changes_map_for};
 
 #[test]
 fn test_encode_details() {
     let message = &[0u8];
-    let original = vec![0u8; 16];
-    let allowed_changes_map = vec![1u8; 16];
+    let original = vec![0u8; 32];
+    let allowed_changes_map = vec![1u8; 32];
 
-    let mut encoded = vec![123u8; 16];
+    println!("original           : {:?}", original);
+    println!("allowed_changes_map: {:?}", allowed_changes_map);
+
+    let mut encoded = vec![123u8; 32];
 
     encode(message, &original, &allowed_changes_map, &mut encoded).expect("error encoding");
 
-    println!("original: {:?}", original);
+    println!("encoded            : {:?}", encoded);
+
+
+    let allowed_changes_map = create_minimal_evenly_random_allowed_changes_map_for(message, &original, 2).expect("could not create map");
+
+    println!("original           : {:?}", original);
     println!("allowed_changes_map: {:?}", allowed_changes_map);
-    println!("encoded: {:?}", encoded);
 
-
-    let allowed_changes_map = create_minimal_random_allowed_changes_map_for(message, &original, 1);
-
-    encoded = vec![123u8; 16];
+    encoded = vec![123u8; 32];
 
     encode(message, &original, &allowed_changes_map, &mut encoded).expect("error encoding");
 
-    println!("original: {:?}", original);
-    println!("allowed_changes_map: {:?}", allowed_changes_map);
-    println!("encoded: {:?}", encoded);
+    println!("encoded            : {:?}", encoded);
 }
 
 
@@ -71,8 +73,8 @@ fn dynamic_test_difference_to_bits_decoder_for(index: usize, bits: &[u8]) {
 }
 fn dynamic_test_difference_to_bits_decoder_for_with(index: usize, bits: &[u8], output_bits_buffer: &mut [bool]) {
     let encoded_difference = dynamic_bits_to_difference(index, &from_bit_vec(bits)).unwrap();
-    dynamic_difference_to_bits(index, encoded_difference, &mut output_bits_buffer[0..get_max_num_bits_encodable(encoded_difference) as usize]);
-    assert_eq!(bits, &to_bit_vec(&output_bits_buffer[0..get_max_num_bits_encodable(encoded_difference) as usize])[..]);
+    dynamic_difference_to_bits(index, encoded_difference, &mut output_bits_buffer[0..get_num_bits_decodable(encoded_difference) as usize]);
+    assert_eq!(bits, &to_bit_vec(&output_bits_buffer[0..get_num_bits_decodable(encoded_difference) as usize])[..]);
 }
 
 #[test]
@@ -113,7 +115,7 @@ fn print_for(index: usize, bits: &[u8]) {
     let encoded = dynamic_bits_to_difference(index,&from_bit_vec(bits));
     println!("-- bits: {:?}, index: {}, result: {:?}", bits, index, encoded);
     if let Some(encoded_difference) = encoded {
-        let mut output_bits = vec![false; get_max_num_bits_encodable(encoded_difference) as usize];
+        let mut output_bits = vec![false; get_num_bits_decodable(encoded_difference) as usize];
         dynamic_difference_to_bits(index, encoded_difference, &mut output_bits);
         println!("---- de: {:?}", &to_bit_vec(&output_bits));
     }
@@ -167,7 +169,7 @@ fn test_static_difference_to_bits_decoder() {
 }
 fn static_test_difference_to_bits_decoder_for(bits: Vec<u8>) {
     let encoded_difference = static_bits_to_difference(&from_bit_vec(&bits)).unwrap();
-    let mut output_bits = vec![false; get_max_num_bits_encodable(encoded_difference) as usize];
+    let mut output_bits = vec![false; get_num_bits_decodable(encoded_difference) as usize];
     static_difference_to_bits(encoded_difference, &mut output_bits);
     assert_eq!(bits, to_bit_vec(&output_bits));
 }
@@ -274,7 +276,7 @@ fn test_bytes() {
     println!("message        : {:?}", message_bytes);
     println!("original       : {:?}", original);
 
-    let mut allowed_changes: Vec<u8> = create_minimal_random_allowed_changes_map(&message_bytes, &original);
+    let mut allowed_changes: Vec<u8> = create_minimal_evenly_random_allowed_changes_map(&message_bytes, &original).expect("could not create map");
     println!("allowed_changes: {:?}", allowed_changes);
 
     let encoded = encode_into_vec(&message_bytes, &original, &mut allowed_changes).unwrap();
@@ -293,7 +295,7 @@ fn test_multi_bit_encoding() {
     println!("message        : {:?}", message_bytes);
     println!("original       : {:?}", original);
 
-    let mut allowed_changes: Vec<u8> = create_minimal_random_allowed_changes_map(&message_bytes, &original);
+    let mut allowed_changes: Vec<u8> = create_minimal_evenly_random_allowed_changes_map(&message_bytes, &original).expect("could not create map");
     println!("allowed_changes: {:?}", allowed_changes);
 
     let encoded= encode_into_vec(&message_bytes, &original, &mut allowed_changes).unwrap();
@@ -316,7 +318,7 @@ fn test_image_without_save() {
 
     let original_image = DifCodeImage::open(original_image_path).unwrap();
 
-    let allowed_changes: Vec<u8> = create_minimal_random_allowed_changes_map(&message_bytes, &original_image);
+    let allowed_changes: Vec<u8> = create_minimal_evenly_random_allowed_changes_map(&message_bytes, &original_image).expect("could not create map");
     println!("allowed_changes len: {:?}", allowed_changes.len());
 
     let encoded_image = encode_into_image(&message_bytes, &original_image, &allowed_changes).expect("encoding failed");
@@ -339,7 +341,7 @@ fn test_image_with_save() {
     let original_image = DifCodeImage::open(original_image_path).unwrap();
 
     let encoded_image = encode_into_image(&message_bytes, &original_image,
-                                          &create_minimal_random_allowed_changes_map(&message_bytes, &original_image)
+                                          &create_minimal_evenly_random_allowed_changes_map(&message_bytes, &original_image).expect("failed to select indices")
     ).expect("encoding/saving failed");
     encoded_image.save(encoded_image_path).expect("saving image failed");
 
@@ -364,8 +366,8 @@ fn test_image_with_save() {
     assert_eq!(message_bytes, decoded_message_from_disk);
 }
 
-#[test]
-fn test_image_multi_bit_with_save() {
+#[test] #[ignore]
+fn test_image_multi_bit_re_max_diff_with_save() {
     let original_image_path = "test/RealisticTestImage.jpg";
     let encoded_image_path = "test/RealisticTestImageMultiBit.png";
 
@@ -377,20 +379,136 @@ fn test_image_multi_bit_with_save() {
     println!("message length: {:?}", message_bytes.len());
 
     let encoded_image = encode_into_image(&message_bytes, &original_image,
-                                          &create_minimal_random_allowed_changes_map(&message_bytes, &original_image)
+                                          &create_minimal_evenly_random_allowed_changes_map(&message_bytes, &original_image).expect("failed to select indices")
     ).expect("encoding/saving failed");
     encoded_image.save(encoded_image_path).expect("saving image failed");
 
     let decoded_message_from_ram_data = decode_into_vec(&original_image, &encoded_image).unwrap();
     assert_eq!(message_bytes, decoded_message_from_ram_data);
 
-    //"proof" of commutativity
-    let decoded_message_from_ram_data_commutativity = decode_into_vec(&encoded_image, &original_image).unwrap();
-    assert_eq!(message_bytes, decoded_message_from_ram_data_commutativity);
+    //time ----
 
+    let original_image_reloaded = DifCodeImage::open(original_image_path).unwrap();
+    assert_eq!(original_image, original_image_reloaded);
+
+    let encoded_image_reloaded = DifCodeImage::open(encoded_image_path).unwrap();
+    assert_eq!(encoded_image, encoded_image_reloaded);
+
+    let decoded_message_from_disk = decode_into_vec(&original_image_reloaded, &encoded_image_reloaded).unwrap();
+    assert_eq!(message_bytes, decoded_message_from_disk);
+}
+
+#[test] #[ignore]
+fn test_image_multi_bit_max_av_area_diff_with_save_MAX_ENCODE() {
+    let original_image_path = "test/RealisticTestImage.jpg";
+    let max_area_av_encoded_image_path = "test/RealisticTestImageMultiBit_MaxAreaAvDiff_MAXMAX.png";
+    let re_encoded_image_path_of_same_message_length = "test/RealisticTestImageMultiBit_MaxAreaAvDiff_MAXMAX_RE_ENCODED_COMPARISION.png";
+
+    println!("original image path: {}", original_image_path);
+
+    let original_image = DifCodeImage::open(original_image_path).unwrap();
+
+    let mut message_bytes: Vec<u8> = (0..original_image.len()).map(|_| { rand::random::<u8>() }).collect(); //~2 bit per rgb value part
+    println!("message length: {:?}", message_bytes.len());
+
+    let mut allowed_changes_map = vec![0u8; original_image.len()];
+    let selection_result = write_minimal_evenly_random_max_area_average_allowed_changes_map_for(&message_bytes, &original_image, &mut allowed_changes_map);
+    println!("selection_result: {:?}", selection_result);
+    let possible_size = match selection_result {
+        Ok(_) => message_bytes.len(),
+        Err(dif_error) => match dif_error {
+            DifCodeError::InternalCapacityReached(num_successful) => num_successful,
+            _ => 0
+        }
+    };
+    println!("possible_size: {:?}", possible_size);
+    message_bytes.truncate(possible_size/8);
+    println!("message_bytes len: {:?}", message_bytes.len());
+
+    let encoding_result = encode_into_image(&message_bytes, &original_image, &allowed_changes_map);
+    println!("encoding_result: {:?}", encoding_result);
+    let encoded_image = match encoding_result {
+        Ok(image) => image,
+        Err(dif_error) => match dif_error {
+            DifCodeError::InternalCapacityReached(num_successful) => {
+                message_bytes.truncate(num_successful/8);
+                println!("message_bytes len: {:?}", message_bytes.len());
+                println!("num_successful: {:?}", num_successful);
+                encode_into_image(&message_bytes, &original_image, &allowed_changes_map).expect("encoding failed")
+            },
+            _ => panic!("unexpected error")
+        }
+    };
+    encoded_image.save(max_area_av_encoded_image_path).expect("saving image failed");
+
+    let decoded_message_from_ram_data = decode_into_vec(&original_image, &encoded_image).unwrap();
+    assert_eq!(message_bytes, decoded_message_from_ram_data);
 
     //time ----
 
+    let original_image_reloaded = DifCodeImage::open(original_image_path).unwrap();
+    assert_eq!(original_image, original_image_reloaded);
+
+    let encoded_image_reloaded = DifCodeImage::open(max_area_av_encoded_image_path).unwrap();
+    assert_eq!(encoded_image, encoded_image_reloaded);
+
+    let decoded_message_from_disk = decode_into_vec(&original_image_reloaded, &encoded_image_reloaded).unwrap();
+    assert_eq!(message_bytes, decoded_message_from_disk);
+
+
+
+    //CREATE AND VALIDATE COMPARISON IMAGE
+
+    let image_encoded_using_re = encode_into_image(&message_bytes, &original_image, &create_minimal_evenly_random_allowed_changes_map(&message_bytes, &original_image).expect("failed to select re")).expect("could not encode using evenly random");
+    image_encoded_using_re.save(re_encoded_image_path_of_same_message_length).expect("could not save comparison image");
+
+    let decoded_message_from_re_encoded = decode_into_vec(&original_image, &image_encoded_using_re).unwrap();
+    assert_eq!(message_bytes, decoded_message_from_re_encoded);
+}
+
+#[test]// #[ignore]
+fn test_image_multi_bit_re_diff_with_save_MAX_ENCODE() {
+    let original_image_path = "test/RealisticTestImage.jpg";
+    let encoded_image_path = "test/RealisticTestImageMultiBit_reDiff_MAXMAX.png";
+
+    println!("original image path: {}", original_image_path);
+
+    let original_image = DifCodeImage::open(original_image_path).unwrap();
+
+    let mut message_bytes: Vec<u8> = (0..original_image.len()).map(|_| { rand::random::<u8>() }).collect(); //~2 bit per rgb value part
+    println!("message length: {:?}", message_bytes.len());
+
+    let mut allowed_changes_map = vec![0u8; original_image.len()];
+    let selection_result = write_minimal_evenly_random_allowed_changes_map_for(&message_bytes, &original_image, &mut allowed_changes_map);
+    println!("selection_result: {:?}", selection_result);
+    let possible_size_in_bits = match selection_result {
+        Ok(_) => message_bytes.len(),
+        Err(dif_error) => match dif_error {
+            DifCodeError::InternalCapacityReached(num_bits_successful) => num_bits_successful,
+            _ => 0
+        }
+    };
+    println!("possible_size: {:?}", possible_size_in_bits);
+    message_bytes.truncate(possible_size_in_bits / 8);
+
+    let encoding_result = encode_into_image(&message_bytes, &original_image, &allowed_changes_map);
+    println!("encoding_result: {:?}", encoding_result);
+    let encoded_image = match encoding_result {
+        Ok(image) => image,
+        Err(dif_error) => match dif_error {
+            DifCodeError::InternalCapacityReached(num_bits_successful) => {
+                message_bytes.truncate(num_bits_successful / 8);
+                encode_into_image(&message_bytes, &original_image, &allowed_changes_map).expect("encoding/saving failed")
+            }
+            _ => panic!("unexpected error")
+        }
+    };
+    encoded_image.save(encoded_image_path).expect("saving image failed");
+
+    let decoded_message_from_ram_data = decode_into_vec(&original_image, &encoded_image).unwrap();
+    assert_eq!(message_bytes, decoded_message_from_ram_data);
+
+    //time ----
 
     let original_image_reloaded = DifCodeImage::open(original_image_path).unwrap();
     assert_eq!(original_image, original_image_reloaded);
@@ -414,7 +532,7 @@ fn test_image_multi_bit_with_save() {
 //     println!("message bytes: {:?}", message_bytes);
 //
 //     let encoded_image = encode_into_image(&message_bytes, &original_image,
-//                                           &create_minimal_random_allowed_changes_map_for(&message_bytes, &original_image)
+//                                           &create_minimal_evenly_random_allowed_changes_map_for(&message_bytes, &original_image)
 //     ).expect("encoding/saving failed");
 //
 //     let decoded_message_from_ram_data = decode_into_vec(&original_image, &encoded_image).unwrap();
@@ -506,4 +624,51 @@ fn test_image_with_save_single_bit() {
 
     let decoded_message_from_disk = decode_into_vec_at_indices(&original_image_reloaded, &encoded_image_reloaded).unwrap();
     assert_eq!(message_bytes, decoded_message_from_disk);
+}
+
+
+#[test]
+fn test_max_encodable_message_length() {
+    let message_bytes: Vec<u8> = (0..1).map(|_| { rand::random::<u8>() }).collect();
+    let original: Vec<u8> = (0..8).map(|x| x as u8).collect();
+
+    let allowed_changes_map = create_minimal_evenly_random_allowed_changes_map_for(&message_bytes, &original, 2).expect("failed to select indices");
+    let min_encodable = get_min_encodable_message_length_in_bits(&original, &allowed_changes_map);
+    let max_encodable = get_max_encodable_message_length_in_bits(&original, &allowed_changes_map);
+
+    println!("message_bytes: {:?}", message_bytes);
+    println!("original           : {:?}", original);
+    println!("allowed_changes_map: {:?}", allowed_changes_map);
+    println!("min_encodable: {}", min_encodable);
+    println!("max_encodable: {}", max_encodable);
+    assert_eq!(min_encodable, max_encodable);
+    assert_eq!(8, max_encodable);
+
+
+    let message_bytes: Vec<u8> = (0..1).map(|_| { rand::random::<u8>() }).collect();
+    let original: Vec<u8> = (0..4).map(|x| x as u8).collect();
+    println!("message_bytes: {:?}", message_bytes);
+    println!("original           : {:?}", original);
+
+    let allowed_changes_map: Vec<u8> = (5..9).map(|x| x as u8).collect(); //distance of 5 each index
+    let min_encodable = get_min_encodable_message_length_in_bits(&original, &allowed_changes_map);
+    let max_encodable = get_max_encodable_message_length_in_bits(&original, &allowed_changes_map);
+
+    println!("allowed_changes_map: {:?}", allowed_changes_map);
+    println!("min_encodable: {}", min_encodable);
+    println!("max_encodable: {}", max_encodable);
+    assert_ne!(min_encodable, max_encodable);
+    assert_eq!(4, min_encodable);
+    assert_eq!(8, max_encodable);
+
+    //NOT NECESSARILY POSSIBLE::
+    // let mut encoded: Vec<u8> = vec![0u8;original.len()];
+    // encode(&message_bytes, &original, &allowed_changes_map, &mut encoded).expect("encoding failed");
+    //
+    // println!("encoded            : {:?}", encoded);
+    //
+    // let mut decoded = Vec::new();
+    // decode(&original, &encoded, &mut decoded).expect("decoding failed");
+    //
+    // println!("decoded      : {:?}", decoded);
 }
