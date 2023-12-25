@@ -75,10 +75,11 @@ The decoder outputs the message.
 
 **Possible improvements:**
 
-    - Select indices based on metric.
+    - Select indices based on metric (add more, diverse metrics for different purposes/types of image).
       Analyze variance of overlapping areas, weight each pixel/index based on the variance in its areas.
       Additionally weight each pixel based on its distance to previously selected pixels
            (high distance to previously selected pixels -> higher probability of selection)
-    - Make the direction of the change dependent on the average rgb vector in the area.
+      (Make the direction of the change dependent on the average rgb vector in the area.
+    - Add parallelization, this algorithm is partially perfect for that.
     (- include alpha channel
         (requires much more complex metrics for selection, because alpha is typically the same for large areas and should not be changed then)

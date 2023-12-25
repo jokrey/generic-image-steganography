@@ -3,6 +3,7 @@ use crate::difference_encoder::bits_difference_converter::{dynamic_bits_to_diffe
 use crate::difference_encoder::multi_bit::{decode_into_vec, encode_into_image, encode_into_vec, decode, encode, get_max_encodable_message_length_in_bits, get_min_encodable_message_length_in_bits};
 use crate::difference_encoder::legacy_single_bit::{randomly_select_indices_within, encode_into_vec_at_indices, decode_into_vec_at_indices, encode_into_image_at_indices, randomly_select_indices};
 use crate::difference_encoder::max_change_map_creator::{create_minimal_evenly_random_allowed_changes_map, create_minimal_evenly_random_allowed_changes_map_for, write_minimal_evenly_random_max_area_average_allowed_changes_map_for, write_minimal_evenly_random_allowed_changes_map_for};
+use jokrey_utilities::time_keeper::TimeKeeper;
 
 #[test]
 fn test_encode_details() {
@@ -366,117 +367,152 @@ fn test_image_with_save() {
     assert_eq!(message_bytes, decoded_message_from_disk);
 }
 
-#[test] #[ignore]
+#[test]// #[ignore]
 fn test_image_multi_bit_re_max_diff_with_save() {
+    let mut time_keeper = TimeKeeper::init();
+
     let original_image_path = "test/RealisticTestImage.jpg";
     let encoded_image_path = "test/RealisticTestImageMultiBit.png";
 
     println!("original image path: {}", original_image_path);
 
     let original_image = DifCodeImage::open(original_image_path).unwrap();
+    time_keeper.println_set_mark("multi-bit-re-0.7 - loaded image");
 
     let message_bytes: Vec<u8> = (0..(original_image.len() as f64*0.7) as usize).map(|_| { rand::random::<u8>() }).collect(); //~2 bit per rgb value part
     println!("message length: {:?}", message_bytes.len());
+    time_keeper.println_set_mark("multi-bit-re-0.7 - created message");
 
-    let encoded_image = encode_into_image(&message_bytes, &original_image,
-                                          &create_minimal_evenly_random_allowed_changes_map(&message_bytes, &original_image).expect("failed to select indices")
-    ).expect("encoding/saving failed");
+    let allowed_changes_map = create_minimal_evenly_random_allowed_changes_map(&message_bytes, &original_image).expect("failed to select indices");
+    time_keeper.println_set_mark("multi-bit-re-0.7 - selected allowed changes");
+
+    let encoded_image = encode_into_image(&message_bytes, &original_image, &allowed_changes_map).expect("encoding/saving failed");
+    time_keeper.println_set_mark("multi-bit-re-0.7 - encoded");
     encoded_image.save(encoded_image_path).expect("saving image failed");
+    time_keeper.println_set_mark("multi-bit-re-0.7 - encoded saved");
 
     let decoded_message_from_ram_data = decode_into_vec(&original_image, &encoded_image).unwrap();
+    time_keeper.println_set_mark("multi-bit-re-0.7 - ram decode");
     assert_eq!(message_bytes, decoded_message_from_ram_data);
+    time_keeper.println_set_mark("multi-bit-re-0.7 - ram decode verified");
 
     //time ----
 
     let original_image_reloaded = DifCodeImage::open(original_image_path).unwrap();
     assert_eq!(original_image, original_image_reloaded);
+    time_keeper.println_set_mark("multi-bit-re-0.7 - original reloaded");
 
     let encoded_image_reloaded = DifCodeImage::open(encoded_image_path).unwrap();
     assert_eq!(encoded_image, encoded_image_reloaded);
+    time_keeper.println_set_mark("multi-bit-re-0.7 - encoded reloaded");
 
     let decoded_message_from_disk = decode_into_vec(&original_image_reloaded, &encoded_image_reloaded).unwrap();
+    time_keeper.println_set_mark("multi-bit-re-0.7 - from files reloaded decode");
     assert_eq!(message_bytes, decoded_message_from_disk);
+    time_keeper.println_set_mark("multi-bit-re-0.7 - from files reloaded decode verified");
 }
 
-#[test] #[ignore]
+#[test]// #[ignore]
 fn test_image_multi_bit_max_av_area_diff_with_save_MAX_ENCODE() {
+    let mut time_keeper = TimeKeeper::init();
+
     let original_image_path = "test/RealisticTestImage.jpg";
     let max_area_av_encoded_image_path = "test/RealisticTestImageMultiBit_MaxAreaAvDiff_MAXMAX.png";
     let re_encoded_image_path_of_same_message_length = "test/RealisticTestImageMultiBit_MaxAreaAvDiff_MAXMAX_RE_ENCODED_COMPARISION.png";
 
+
     println!("original image path: {}", original_image_path);
 
     let original_image = DifCodeImage::open(original_image_path).unwrap();
+    time_keeper.println_set_mark("multi-bit-av-max - loaded image");
 
     let mut message_bytes: Vec<u8> = (0..original_image.len()).map(|_| { rand::random::<u8>() }).collect(); //~2 bit per rgb value part
     println!("message length: {:?}", message_bytes.len());
+    time_keeper.println_set_mark("multi-bit-av-max - created message");
 
     let mut allowed_changes_map = vec![0u8; original_image.len()];
     let selection_result = write_minimal_evenly_random_max_area_average_allowed_changes_map_for(&message_bytes, &original_image, &mut allowed_changes_map);
     println!("selection_result: {:?}", selection_result);
-    let possible_size = match selection_result {
+    let possible_size_in_bits = match selection_result {
         Ok(_) => message_bytes.len(),
         Err(dif_error) => match dif_error {
-            DifCodeError::InternalCapacityReached(num_successful) => num_successful,
+            DifCodeError::InternalCapacityReached(num_bits_successful) => num_bits_successful,
             _ => 0
         }
     };
-    println!("possible_size: {:?}", possible_size);
-    message_bytes.truncate(possible_size/8);
-    println!("message_bytes len: {:?}", message_bytes.len());
+    println!("possible_size: {:?}", possible_size_in_bits);
+    time_keeper.println_set_mark("multi-bit-av-max - selected bits to change");
+    message_bytes.truncate(possible_size_in_bits / 8);
+    time_keeper.println_set_mark("multi-bit-av-max - truncated message");
 
     let encoding_result = encode_into_image(&message_bytes, &original_image, &allowed_changes_map);
     println!("encoding_result: {:?}", encoding_result);
+    time_keeper.println_set_mark("multi-bit-av-max - attempted to encoded image 1");
     let encoded_image = match encoding_result {
         Ok(image) => image,
         Err(dif_error) => match dif_error {
-            DifCodeError::InternalCapacityReached(num_successful) => {
-                message_bytes.truncate(num_successful/8);
-                println!("message_bytes len: {:?}", message_bytes.len());
-                println!("num_successful: {:?}", num_successful);
-                encode_into_image(&message_bytes, &original_image, &allowed_changes_map).expect("encoding failed")
-            },
+            DifCodeError::InternalCapacityReached(num_bits_successful) => {
+                message_bytes.truncate(num_bits_successful / 8);
+                encode_into_image(&message_bytes, &original_image, &allowed_changes_map).expect("encoding/saving failed")
+            }
             _ => panic!("unexpected error")
         }
     };
+    time_keeper.println_set_mark("multi-bit-av-max - encoded image");
     encoded_image.save(max_area_av_encoded_image_path).expect("saving image failed");
+    time_keeper.println_set_mark("multi-bit-av-max - saved encoded image");
 
     let decoded_message_from_ram_data = decode_into_vec(&original_image, &encoded_image).unwrap();
+    time_keeper.println_set_mark("multi-bit-av-max - ram decode");
     assert_eq!(message_bytes, decoded_message_from_ram_data);
+    time_keeper.println_set_mark("multi-bit-av-max - ram decode verified");
 
     //time ----
 
     let original_image_reloaded = DifCodeImage::open(original_image_path).unwrap();
     assert_eq!(original_image, original_image_reloaded);
+    time_keeper.println_set_mark("multi-bit-av-max - reloaded+verified original");
 
     let encoded_image_reloaded = DifCodeImage::open(max_area_av_encoded_image_path).unwrap();
     assert_eq!(encoded_image, encoded_image_reloaded);
+    time_keeper.println_set_mark("multi-bit-av-max - reloaded+verified encoded");
 
     let decoded_message_from_disk = decode_into_vec(&original_image_reloaded, &encoded_image_reloaded).unwrap();
+    time_keeper.println_set_mark("multi-bit-av-max - from file decoded");
     assert_eq!(message_bytes, decoded_message_from_disk);
+    time_keeper.println_set_mark("multi-bit-av-max - from file decoded verified");
 
 
 
     //CREATE AND VALIDATE COMPARISON IMAGE
 
     let image_encoded_using_re = encode_into_image(&message_bytes, &original_image, &create_minimal_evenly_random_allowed_changes_map(&message_bytes, &original_image).expect("failed to select re")).expect("could not encode using evenly random");
+    time_keeper.println_set_mark("multi-bit-av-max - encoded using re");
     image_encoded_using_re.save(re_encoded_image_path_of_same_message_length).expect("could not save comparison image");
+    time_keeper.println_set_mark("multi-bit-av-max - encoded using re saved");
+
 
     let decoded_message_from_re_encoded = decode_into_vec(&original_image, &image_encoded_using_re).unwrap();
+    time_keeper.println_set_mark("multi-bit-av-max - re encoded decoded in ram");
     assert_eq!(message_bytes, decoded_message_from_re_encoded);
+    time_keeper.println_set_mark("multi-bit-av-max - re encoded decoded in ram verified");
 }
 
 #[test]// #[ignore]
 fn test_image_multi_bit_re_diff_with_save_MAX_ENCODE() {
+    let mut time_keeper = TimeKeeper::init();
+
     let original_image_path = "test/RealisticTestImage.jpg";
     let encoded_image_path = "test/RealisticTestImageMultiBit_reDiff_MAXMAX.png";
 
     println!("original image path: {}", original_image_path);
 
     let original_image = DifCodeImage::open(original_image_path).unwrap();
+    time_keeper.println_set_mark("multi-bit-re-max - loaded image");
 
     let mut message_bytes: Vec<u8> = (0..original_image.len()).map(|_| { rand::random::<u8>() }).collect(); //~2 bit per rgb value part
     println!("message length: {:?}", message_bytes.len());
+    time_keeper.println_set_mark("multi-bit-re-max - created message");
 
     let mut allowed_changes_map = vec![0u8; original_image.len()];
     let selection_result = write_minimal_evenly_random_allowed_changes_map_for(&message_bytes, &original_image, &mut allowed_changes_map);
@@ -489,10 +525,13 @@ fn test_image_multi_bit_re_diff_with_save_MAX_ENCODE() {
         }
     };
     println!("possible_size: {:?}", possible_size_in_bits);
+    time_keeper.println_set_mark("multi-bit-re-max - selected bits to change");
     message_bytes.truncate(possible_size_in_bits / 8);
+    time_keeper.println_set_mark("multi-bit-re-max - truncated message");
 
     let encoding_result = encode_into_image(&message_bytes, &original_image, &allowed_changes_map);
     println!("encoding_result: {:?}", encoding_result);
+    time_keeper.println_set_mark("multi-bit-re-max - attempted to encoded image 1");
     let encoded_image = match encoding_result {
         Ok(image) => image,
         Err(dif_error) => match dif_error {
@@ -503,47 +542,30 @@ fn test_image_multi_bit_re_diff_with_save_MAX_ENCODE() {
             _ => panic!("unexpected error")
         }
     };
+    time_keeper.println_set_mark("multi-bit-re-max - encoded image");
     encoded_image.save(encoded_image_path).expect("saving image failed");
+    time_keeper.println_set_mark("multi-bit-re-max - saved encoded image");
 
     let decoded_message_from_ram_data = decode_into_vec(&original_image, &encoded_image).unwrap();
+    time_keeper.println_set_mark("multi-bit-re-max - ram decode");
     assert_eq!(message_bytes, decoded_message_from_ram_data);
+    time_keeper.println_set_mark("multi-bit-re-max - ram decode verified");
 
     //time ----
 
     let original_image_reloaded = DifCodeImage::open(original_image_path).unwrap();
     assert_eq!(original_image, original_image_reloaded);
+    time_keeper.println_set_mark("multi-bit-re-max - reloaded+verified original");
 
     let encoded_image_reloaded = DifCodeImage::open(encoded_image_path).unwrap();
     assert_eq!(encoded_image, encoded_image_reloaded);
+    time_keeper.println_set_mark("multi-bit-re-max - reloaded+verified encoded");
 
     let decoded_message_from_disk = decode_into_vec(&original_image_reloaded, &encoded_image_reloaded).unwrap();
+    time_keeper.println_set_mark("multi-bit-re-max - from file decoded");
     assert_eq!(message_bytes, decoded_message_from_disk);
+    time_keeper.println_set_mark("multi-bit-re-max - from file decoded verified");
 }
-
-// #[test]
-// fn test_image_multi_bit_with_display() {
-//     let original_image_path = "test/RealisticTestImage.jpg";
-//
-//     println!("original image path: {}", original_image_path);
-//
-//     let original_image = DifCodeImage::open(original_image_path).unwrap();
-//
-//     let message_bytes: Vec<u8> = (0..original_image.len()/2).map(|_| { rand::random::<u8>() }).collect(); //~2 bit per rgb value part
-//     println!("message bytes: {:?}", message_bytes);
-//
-//     let encoded_image = encode_into_image(&message_bytes, &original_image,
-//                                           &create_minimal_evenly_random_allowed_changes_map_for(&message_bytes, &original_image)
-//     ).expect("encoding/saving failed");
-//
-//     let decoded_message_from_ram_data = decode_into_vec(&original_image, &encoded_image).unwrap();
-//     assert_eq!(message_bytes, decoded_message_from_ram_data);
-//
-//
-//     let pool = ThreadPool::new(2);
-//     pool.execute(move || display_image("Original", &original_image.raw()));
-//     pool.execute(move || display_image("Encoded", &encoded_image.raw()));
-//     pool.join();
-// }
 
 
 
