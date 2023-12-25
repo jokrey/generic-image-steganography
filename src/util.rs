@@ -45,7 +45,7 @@ impl DifCodeImage {
     }
 
     pub fn with_capacity(width: u32, height: u32) -> DifCodeImage {
-        DifCodeImage(DynamicImage::new_rgb8(width, height).into_rgb())
+        DifCodeImage(DynamicImage::new_rgb8(width, height).into_rgb8())
     }
     pub fn save(&self, path: &str) -> ImageResult<()> {
         self.save_to(Path::new(path))
@@ -65,10 +65,10 @@ impl DifCodeImage {
     }
     pub fn open(path: &str) -> Result<DifCodeImage, ImageError> {
         let image = image::open(path)?;
-        Ok(DifCodeImage::from(image.into_rgb()))
+        Ok(DifCodeImage::from(image.into_rgb8()))
     }
     pub fn from_memory(buffer: &[u8]) -> Result<DifCodeImage, ImageError> {
-        Ok(DifCodeImage::from(image::load_from_memory(buffer)?.into_rgb()))
+        Ok(DifCodeImage::from(image::load_from_memory(buffer)?.into_rgb8()))
     }
 
     pub fn generate_integral_image_for_rgb(&self) -> IntegralRgbImage {

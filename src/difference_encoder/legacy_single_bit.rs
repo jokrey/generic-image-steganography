@@ -4,7 +4,7 @@ use jokrey_utilities::general::{get_bit_at, sample_unique, set_bit_at};
 
 use crate::util::{DifCodeError, DifCodeImage, DifCodeResult, EncodingContainer, get_length_in_bits};
 
-pub fn randomly_select_indices_within(message_bytes: &[u8], original: &dyn EncodingContainer) -> Vec<usize> {
+pub fn randomly_select_indices_within(message_bytes: &[u8], original: &dyn EncodingContainer<Output=u8>) -> Vec<usize> {
     randomly_select_indices(get_length_in_bits(message_bytes), original.len())
 }
 pub fn randomly_select_indices(message_length_in_bits: usize, max_index: usize) -> Vec<usize> {
@@ -13,7 +13,7 @@ pub fn randomly_select_indices(message_length_in_bits: usize, max_index: usize) 
     selected_indices
 }
 
-pub fn encode_into_vec_at_indices(message_bytes: &[u8], original: &dyn EncodingContainer, selected_indices: &[usize]) -> DifCodeResult<Vec<u8>> {
+pub fn encode_into_vec_at_indices(message_bytes: &[u8], original: &dyn EncodingContainer<Output=u8>, selected_indices: &[usize]) -> DifCodeResult<Vec<u8>> {
     let mut encoded= vec![0; original.len()];
     encode_at_indices(message_bytes, original, selected_indices, &mut encoded)?;
     Ok(encoded)
@@ -30,7 +30,7 @@ pub fn encode_into_image_into_path_at_indices(message_bytes: &[u8], original: &D
 }
 
 ///Note: - selected_indices must be sorted in ascending order and each entry must represent an index within the original container
-pub fn encode_at_indices(message_bytes: &[u8], original: &dyn EncodingContainer, selected_indices: &[usize], encoded: &mut dyn EncodingContainer) -> DifCodeResult<()> {
+pub fn encode_at_indices(message_bytes: &[u8], original: &dyn EncodingContainer<Output=u8>, selected_indices: &[usize], encoded: &mut dyn EncodingContainer<Output=u8>) -> DifCodeResult<()> {
     if get_length_in_bits(message_bytes) < selected_indices.len() {
         Err(DifCodeError::from("message length in bits > selected indices length (too many selected indices, ambiguity must be resolved by caller)"))
     } else if get_length_in_bits(message_bytes) > selected_indices.len() { //here the longer code tables come into play
@@ -63,7 +63,7 @@ pub fn encode_at_indices(message_bytes: &[u8], original: &dyn EncodingContainer,
     }
 }
 
-fn encode_difference_into(index: usize, original: &dyn EncodingContainer, encoded: &mut dyn EncodingContainer, goal_difference: u8, difference_sign_positive_desired: bool) {
+fn encode_difference_into(index: usize, original: &dyn EncodingContainer<Output=u8>, encoded: &mut dyn EncodingContainer<Output=u8>, goal_difference: u8, difference_sign_positive_desired: bool) {
     let original_value = original[index];
     if difference_sign_positive_desired {
         if original_value > 255 - goal_difference { //does not fit(would go over 255), must subtract - despite wishes
@@ -85,7 +85,7 @@ fn encode_difference_into(index: usize, original: &dyn EncodingContainer, encode
 
 
 
-pub fn decode_into_vec_at_indices(original: &dyn EncodingContainer, encoded: &dyn EncodingContainer) -> DifCodeResult<Vec<u8>> {
+pub fn decode_into_vec_at_indices(original: &dyn EncodingContainer<Output=u8>, encoded: &dyn EncodingContainer<Output=u8>) -> DifCodeResult<Vec<u8>> {
     if original.len() != encoded.len() {
         panic!("original data length != encoded data length")
     }
@@ -102,7 +102,7 @@ pub fn decode_into_vec_at_indices(original: &dyn EncodingContainer, encoded: &dy
     Ok(decoded_message)
 }
 
-pub fn decode_at_indices(original: &dyn EncodingContainer, encoded: &dyn EncodingContainer, msg_length_in_bits: usize, decoded_message_buffer: &mut [u8]) -> DifCodeResult<()> {
+pub fn decode_at_indices(original: &dyn EncodingContainer<Output=u8>, encoded: &dyn EncodingContainer<Output=u8>, msg_length_in_bits: usize, decoded_message_buffer: &mut [u8]) -> DifCodeResult<()> {
     let mut code_text_index:usize = 0;
     let mut message_index = 0;
     let mut message_byte = 0u8;
@@ -131,7 +131,7 @@ pub fn decode_at_indices(original: &dyn EncodingContainer, encoded: &dyn Encodin
 }
 
 
-fn decode_from_difference_at_indices(index: usize, original: &dyn EncodingContainer, encoded: &dyn EncodingContainer) -> Option<bool> {
+fn decode_from_difference_at_indices(index: usize, original: &dyn EncodingContainer<Output=u8>, encoded: &dyn EncodingContainer<Output=u8>) -> Option<bool> {
     let difference = original[index] as isize - encoded[index] as isize;
 
     match difference.abs() {
@@ -141,7 +141,7 @@ fn decode_from_difference_at_indices(index: usize, original: &dyn EncodingContai
     }
 }
 
-pub fn get_single_bit_encoded_message_length_in_bits(original: &dyn EncodingContainer, encoded: &dyn EncodingContainer) -> usize {
+pub fn get_single_bit_encoded_message_length_in_bits(original: &dyn EncodingContainer<Output=u8>, encoded: &dyn EncodingContainer<Output=u8>) -> usize {
     let mut counter: usize = 0;
     for index in 0..original.len() {
         if original[index] != encoded[index] {
